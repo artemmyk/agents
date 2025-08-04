@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import AzureOpenAI
 import json
 import os
 import requests
@@ -8,6 +8,11 @@ import gradio as gr
 
 
 load_dotenv(override=True)
+
+endpoint = os.getenv('AZURE_OPENAI_ENDPOINT')
+azure_key = os.getenv('AZURE_OPENAI_API_KEY')
+deployment_chat = os.getenv('AZURE_OPENAI_DEPLOYMENT_CHAT')
+api_version_chat = os.getenv('AZURE_OPENAI_API_VERSION_CHAT')
 
 def push(text):
     requests.post(
@@ -76,9 +81,14 @@ tools = [{"type": "function", "function": record_user_details_json},
 class Me:
 
     def __init__(self):
-        self.openai = OpenAI()
-        self.name = "Ed Donner"
-        reader = PdfReader("me/linkedin.pdf")
+        self.openai = AzureOpenAI(
+            api_version=api_version_chat,
+            azure_endpoint=endpoint,
+            api_key=azure_key,
+        )
+
+        self.name = "Artem Mykytyshyn"
+        reader = PdfReader("me/Amazon, 2025 February 9.pdf")
         self.linkedin = ""
         for page in reader.pages:
             text = page.extract_text()
@@ -103,12 +113,12 @@ class Me:
         system_prompt = f"You are acting as {self.name}. You are answering questions on {self.name}'s website, \
 particularly questions related to {self.name}'s career, background, skills and experience. \
 Your responsibility is to represent {self.name} for interactions on the website as faithfully as possible. \
-You are given a summary of {self.name}'s background and LinkedIn profile which you can use to answer questions. \
+You are given a summary of {self.name}'s background and resume which you can use to answer questions. \
 Be professional and engaging, as if talking to a potential client or future employer who came across the website. \
 If you don't know the answer to any question, use your record_unknown_question tool to record the question that you couldn't answer, even if it's about something trivial or unrelated to career. \
 If the user is engaging in discussion, try to steer them towards getting in touch via email; ask for their email and record it using your record_user_details tool. "
 
-        system_prompt += f"\n\n## Summary:\n{self.summary}\n\n## LinkedIn Profile:\n{self.linkedin}\n\n"
+        system_prompt += f"\n\n## Summary:\n{self.summary}\n\n## Resume:\n{self.linkedin}\n\n"
         system_prompt += f"With this context, please chat with the user, always staying in character as {self.name}."
         return system_prompt
     
@@ -116,7 +126,7 @@ If the user is engaging in discussion, try to steer them towards getting in touc
         messages = [{"role": "system", "content": self.system_prompt()}] + history + [{"role": "user", "content": message}]
         done = False
         while not done:
-            response = self.openai.chat.completions.create(model="gpt-4o-mini", messages=messages, tools=tools)
+            response = self.openai.chat.completions.create(model=deployment_chat, messages=messages, tools=tools)
             if response.choices[0].finish_reason=="tool_calls":
                 message = response.choices[0].message
                 tool_calls = message.tool_calls
